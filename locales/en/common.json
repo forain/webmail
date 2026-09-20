@@ -244,7 +244,11 @@
       "delete": "Delete",
       "delete_confirm_title": "Delete emails",
       "delete_confirm_message": "Are you sure you want to delete {count, plural, one {1 email} other {# emails}}?",
-      "clear_selection": "Clear selection"
+      "clear_selection": "Clear selection",
+      "page_selected": "All {count, plural, one {1 email} other {# emails}} on this page are selected.",
+      "select_all_matching": "Select all {count, plural, one {1 email} other {# emails}} matching this view",
+      "select_all_matching_uncounted": "Select all emails matching this view",
+      "all_matching_selected": "All {count, plural, one {1 email} other {# emails}} matching this view are selected."
     },
     "permanent_delete": "Delete permanently",
     "permanent_delete_confirm_title": "Permanently delete",

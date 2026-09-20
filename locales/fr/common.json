@@ -244,7 +244,11 @@
       "delete": "Supprimer",
       "delete_confirm_title": "Supprimer les e-mails",
       "delete_confirm_message": "Voulez-vous vraiment supprimer {count, plural, one {1 e-mail} other {# e-mails}} ?",
-      "clear_selection": "Effacer la sélection"
+      "clear_selection": "Effacer la sélection",
+      "page_selected": "{count, plural, one {Le seul e-mail} other {Les # e-mails}} de cette page {count, plural, one {est sélectionné} other {sont sélectionnés}}.",
+      "select_all_matching": "Sélectionner {count, plural, one {le seul e-mail} other {les # e-mails}} correspondant à cette vue",
+      "select_all_matching_uncounted": "Sélectionner tous les e-mails correspondant à cette vue",
+      "all_matching_selected": "{count, plural, one {Le seul e-mail} other {Les # e-mails}} correspondant à cette vue {count, plural, one {est sélectionné} other {sont sélectionnés}}."
     },
     "permanent_delete": "Supprimer définitivement",
     "permanent_delete_confirm_title": "Supprimer définitivement",

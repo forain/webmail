@@ -5,11 +5,11 @@ import type { IJMAPClient } from "@/lib/jmap/client-interface";
 import { useSettingsStore, getMessageListOrderFor } from "@/stores/settings-store";
 import { useCalendarStore } from "@/stores/calendar-store";
 import type { SortLevel } from "@/lib/message-list-order";
-import { SearchFilters, DEFAULT_SEARCH_FILTERS, buildJMAPFilter, isFilterEmpty } from "@/lib/jmap/search-utils";
+import { SearchFilters, DEFAULT_SEARCH_FILTERS, buildJMAPFilter, buildFolderFilter, buildTextSearchFilter, isFilterEmpty } from "@/lib/jmap/search-utils";
 import { emailHooks } from "@/lib/plugin-hooks";
 import { resolveThreadRoute } from "@/lib/thread-routing";
 import type { ExternalSearchResult } from "@/lib/plugin-types";
-import { fetchUnifiedEmails, fetchUnifiedMailboxCounts, searchUnifiedEmails, advancedSearchUnifiedEmails, fetchCrossViewEmails, searchCrossViewEmails, advancedSearchCrossViewEmails, fetchTagEmails, getCrossUnreadTotal, type UnifiedAccountClient, type UnifiedMailboxCounts } from "@/lib/unified-mailbox";
+import { fetchUnifiedEmails, fetchUnifiedMailboxCounts, searchUnifiedEmails, advancedSearchUnifiedEmails, fetchCrossViewEmails, searchCrossViewEmails, advancedSearchCrossViewEmails, fetchTagEmails, getCrossUnreadTotal, fanOutEmailIds, findMailboxByRole, resolveJmapTarget, getCrossIncludedMailboxes, buildCrossFilter, type EmailIdRef, type UnifiedAccountClient, type UnifiedMailboxCounts } from "@/lib/unified-mailbox";
 import { useAuthStore } from "@/stores/auth-store";
 import { useAccountStore } from "@/stores/account-store";
 import { useMessageListTabsStore } from "@/stores/message-list-tabs-store";
@@ -68,6 +68,13 @@ interface EmailStore {
   quota: { used: number; total: number } | null;
   processingReadStatus: Set<string>; // Track emails being marked as read/unread
   selectedEmailIds: Set<string>; // Track selected emails for batch operations
+  // "Select all matching": the selection covers every email of the current
+  // view/query, not just the loaded page. Holds the `selectionScopeKey` of the
+  // view it was made in; it only counts while that key still matches, so a
+  // new search, folder, tab or account can never inherit it (see
+  // isAllMatchingSelected). Batch actions then enumerate the matching ids
+  // server-side (resolveSelectedEmailIds) instead of reading `selectedEmailIds`.
+  allMatchingScope: string | null;
   // Emails the user just read (unread view) or unstarred (starred view) that
   // should stay visible in that self-filtering cross view until it is re-opened,
   // instead of vanishing on the next push refresh. Cleared on navigation.
@@ -189,6 +196,17 @@ interface EmailStore {
   selectRangeEmails: (targetEmailId: string) => void;
   lastSelectedEmailId: string | null;
   selectAllEmails: () => void;
+  /** Extend the selection to every email matching the current view/query. */
+  selectAllMatching: () => void;
+  /** Whether `allMatchingScope` still applies to the view being shown. */
+  isAllMatchingSelected: () => boolean;
+  /**
+   * The ids a batch action applies to: the explicit selection, or - in
+   * "select all matching" mode - every id of the current view enumerated
+   * server-side. Throws when the enumeration cannot cover the whole view
+   * (an account failed), so an action never silently covers part of it.
+   */
+  resolveSelectedEmailIds: (client: IJMAPClient) => Promise<string[]>;
   clearSelection: () => void;
 
   // JMAP operations
@@ -1018,6 +1036,170 @@ function isAggregateListView(): boolean {
 }
 
 /**
+ * Identity of the list the user is looking at, for "select all matching":
+ * everything that decides which emails the view queries. A selection made
+ * under one key is void under any other (see `allMatchingScope`).
+ */
+function selectionScopeKey(): string {
+  const s = useEmailStore.getState();
+  return JSON.stringify([
+    useAuthStore.getState().activeAccountId,
+    s.viewingAccountId,
+    s.selectedMailbox,
+    s.selectedKeyword,
+    s.isUnifiedView,
+    s.unifiedRole,
+    s.crossView,
+    s.searchQuery,
+    s.searchMailboxId,
+    s.searchFilters,
+    useMessageListTabsStore.getState().activeTabId,
+  ]);
+}
+
+/**
+ * The emails a batch action targets, with the source stamps the actions route
+ * by. Explicit selection: the selected listed emails. "All matching": every id
+ * of the current view enumerated with Email/query, along the same branches
+ * (and with the same filters) the list itself is fetched with in
+ * fetchEmails / searchEmails / advancedSearch / loadMoreEmails, unioned with
+ * the listed selection so a plugin-injected search hit is not lost. Ids past
+ * the loaded page are unstamped in single-account views (they route like any
+ * undecorated email: active client + viewed shared account) and stamped per
+ * account in the aggregate views.
+ */
+async function resolveSelectionRefs(client: IJMAPClient): Promise<{ refs: EmailIdRef[]; allMatching: boolean }> {
+  const state = useEmailStore.getState();
+  const byId = new Map<string, EmailIdRef>();
+  for (const email of state.emails) {
+    if (state.selectedEmailIds.has(email.id)) {
+      byId.set(email.id, { id: email.id, sourceAccountId: email.sourceAccountId, sourceClientAccountId: email.sourceClientAccountId });
+    }
+  }
+  if (!state.isAllMatchingSelected()) {
+    return { refs: Array.from(byId.values()), allMatching: false };
+  }
+
+  const { searchQuery, searchFilters, selectedKeyword, isUnifiedView, unifiedRole, crossView, selectedMailbox } = state;
+  const hasFilters = !isFilterEmpty(searchFilters);
+  let result: { refs: EmailIdRef[]; complete: boolean; errors?: Map<string, string> };
+
+  if (isUnifiedView && crossView) {
+    const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+    const built = await buildUnifiedAccountClients({ includeGroup });
+    // Mirrors fetch/search/advancedSearchCrossViewEmails: membership AND the
+    // free-text / advanced conditions. The plain text search deliberately
+    // sends the raw query, as searchCrossViewEmails does.
+    const extra = hasFilters
+      ? buildJMAPFilter(searchQuery, searchFilters, undefined)
+      : searchQuery ? { text: searchQuery } : {};
+    result = await fanOutEmailIds(built, (account) => {
+      const included = getCrossIncludedMailboxes(account);
+      if (included.length === 0) return null;
+      const ids = included.map((m) => account.isShared ? (m.originalId ?? m.id) : m.id);
+      const membership = buildCrossFilter(crossView, ids);
+      return {
+        filter: Object.keys(extra).length > 0 ? { operator: 'AND', conditions: [membership, extra] } : membership,
+        jmapAccountId: account.isShared ? account.accountId : undefined,
+      };
+    });
+  } else if (isUnifiedView && unifiedRole) {
+    const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+    const built = await buildUnifiedAccountClients({ includeGroup });
+    result = await fanOutEmailIds(built, (account) => {
+      const mailbox = findMailboxByRole(account.mailboxes, unifiedRole);
+      if (!mailbox) return null;
+      const { jmapMailboxId, jmapAccountId } = resolveJmapTarget(account, mailbox);
+      const filter = hasFilters
+        ? buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId)
+        : searchQuery
+          ? buildTextSearchFilter(searchQuery, jmapMailboxId)
+          : buildFolderFilter(jmapMailboxId);
+      return { filter, jmapAccountId };
+    });
+  } else if (searchQuery || hasFilters) {
+    // Same scope the search ran under (the search panel's folder), not the
+    // folder that happens to be open in the list.
+    const { searchMailboxId } = state;
+    const mailbox = resolveActionMailboxes().find(mb => mb.id === searchMailboxId);
+    const jmapMailboxId = mailbox?.originalId || searchMailboxId;
+    const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
+    const filter = hasFilters
+      ? buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId)
+      : buildTextSearchFilter(searchQuery, jmapMailboxId);
+    const r = await resolveActionClient(client).queryAllEmailIds(filter, accountId);
+    result = { refs: r.ids.map(id => ({ id })), complete: r.complete };
+  } else if (selectedKeyword) {
+    // A tag spans folders and accounts (#1038): every account the tag view
+    // fans out over, no folder constraint.
+    const built = buildTagViewAccountClients(client);
+    result = await fanOutEmailIds(built, (account) => ({
+      filter: buildFolderFilter(undefined, `$label:${selectedKeyword}`),
+      jmapAccountId: account.isShared ? account.accountId : undefined,
+    }));
+  } else {
+    const mailboxes = resolveActionMailboxes();
+    const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
+    const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
+    const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+    const categoryFilter = useMessageListTabsStore.getState().getCategoryFilter(mailbox?.role);
+    const filter = buildFolderFilter(jmapMailboxId, undefined, categoryFilter ?? undefined);
+    const r = await resolveActionClient(client).queryAllEmailIds(filter, accountId);
+    result = { refs: r.ids.map(id => ({ id })), complete: r.complete };
+  }
+
+  if (!result.complete) {
+    const detail = result.errors && result.errors.size > 0
+      ? `: ${Array.from(result.errors.values()).join('; ')}`
+      : '';
+    throw new Error(`Could not resolve every matching email${detail}`);
+  }
+  for (const ref of result.refs) {
+    if (!byId.has(ref.id)) byId.set(ref.id, ref);
+  }
+  return { refs: Array.from(byId.values()), allMatching: true };
+}
+
+/**
+ * Group batch targets by owning JMAP account, each with the login client that
+ * reaches it. Undecorated refs (single-mailbox views) fall into '__default__'
+ * = the active client (see the batch actions).
+ */
+function groupRefsBySource(refs: EmailIdRef[]): Map<string, { clientAccountId?: string; ids: string[] }> {
+  const bySource = new Map<string, { clientAccountId?: string; ids: string[] }>();
+  for (const ref of refs) {
+    const key = ref.sourceAccountId || '__default__';
+    if (!bySource.has(key)) bySource.set(key, { clientAccountId: ref.sourceClientAccountId, ids: [] });
+    bySource.get(key)!.ids.push(ref.id);
+  }
+  return bySource;
+}
+
+/**
+ * In "select all matching" mode a freshly loaded page is already part of the
+ * selection: check its rows too.
+ */
+function extendSelectionWithLoaded(newEmails: Email[]): Partial<EmailStore> {
+  const state = useEmailStore.getState();
+  if (newEmails.length === 0 || !state.isAllMatchingSelected()) return {};
+  const next = new Set(state.selectedEmailIds);
+  for (const email of newEmails) next.add(email.id);
+  return { selectedEmailIds: next };
+}
+
+/**
+ * After a batch action ran in "select all matching" mode, the list and the
+ * folder counters were patched only for the loaded rows; re-read both from
+ * the server for the rest.
+ */
+async function refreshAfterAllMatchingAction(client: IJMAPClient): Promise<void> {
+  const store = useEmailStore.getState();
+  await store.refreshCurrentMailbox(client);
+  void store.fetchMailboxes(client);
+  if (store.selectedKeyword) void store.fetchTagCounts(client);
+}
+
+/**
  * After a mailbox-list mutation (create/rename/delete/etc.), refresh the
  * cache for whichever account we're operating on. Writes the result to the
  * standard `mailboxes` slot for the active account, or the per-account
@@ -1353,6 +1535,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   quota: null,
   processingReadStatus: new Set(),
   selectedEmailIds: new Set(),
+  allMatchingScope: null,
   retainedInViewIds: new Set(),
   lastSelectedEmailId: null,
   hasMoreEmails: false,
@@ -1419,6 +1602,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     isLoadingMore: false,
     selectedEmail: null,
     selectedEmailIds: new Set(),
+    allMatchingScope: null,
     selectedKeyword: null,
     expandedThreadIds: new Set(),
     threadEmailsCache: new Map(),
@@ -1464,6 +1648,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     isLoadingMore: false,
     selectedEmail: null,
     selectedEmailIds: new Set(),
+    allMatchingScope: null,
     expandedThreadIds: new Set(),
     threadEmailsCache: new Map(),
     threadEmailCounts: new Map(),
@@ -1501,6 +1686,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     isLoadingMore: false,
     selectedEmail: null,
     selectedEmailIds: new Set(),
+    allMatchingScope: null,
     selectedKeyword: null,
     expandedThreadIds: new Set(),
     threadEmailsCache: new Map(),
@@ -1521,7 +1707,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     } else {
       newSelection.add(emailId);
     }
-    set({ selectedEmailIds: newSelection, lastSelectedEmailId: emailId });
+    // Any hand-made change narrows "all matching" back to an explicit selection.
+    set({ selectedEmailIds: newSelection, lastSelectedEmailId: emailId, allMatchingScope: null });
   },
 
   selectRangeEmails: (targetEmailId) => {
@@ -1537,17 +1724,38 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     for (let i = start; i <= end; i++) {
       newSelection.add(emails[i].id);
     }
-    set({ selectedEmailIds: newSelection });
+    set({ selectedEmailIds: newSelection, allMatchingScope: null });
   },
 
   selectAllEmails: () => {
     const { emails } = get();
     const allIds = new Set(emails.map(e => e.id));
-    set({ selectedEmailIds: allIds });
+    set({ selectedEmailIds: allIds, allMatchingScope: null });
+  },
+
+  selectAllMatching: () => {
+    const { emails, selectedMailbox } = get();
+    // Scheduled mail is client-side state with its own actions; there is no
+    // server query to widen to.
+    if (selectedMailbox === VIRTUAL_SCHEDULED_MAILBOX_ID) return;
+    set({
+      selectedEmailIds: new Set(emails.map(e => e.id)),
+      allMatchingScope: selectionScopeKey(),
+    });
+  },
+
+  isAllMatchingSelected: () => {
+    const { allMatchingScope } = get();
+    return allMatchingScope !== null && allMatchingScope === selectionScopeKey();
+  },
+
+  resolveSelectedEmailIds: async (client) => {
+    const { refs } = await resolveSelectionRefs(client);
+    return refs.map(r => r.id);
   },
 
   clearSelection: () => {
-    set({ selectedEmailIds: new Set(), lastSelectedEmailId: null });
+    set({ selectedEmailIds: new Set(), lastSelectedEmailId: null, allMatchingScope: null });
   },
 
   // JMAP operations
@@ -1842,6 +2050,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           totalEmails: result.total,
           isLoadingMore: false,
           unifiedErrors: result.errors,
+          ...extendSelectionWithLoaded(enrichedNewEmails),
         });
       } catch (error) {
         if (!isCurrentView()) return;
@@ -1888,6 +2097,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           totalEmails: result.total,
           isLoadingMore: false,
           unifiedErrors: result.errors,
+          ...extendSelectionWithLoaded(enrichedNewEmails),
         });
       } catch (error) {
         if (!isCurrentView()) return;
@@ -1984,7 +2194,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         emails: [...currentEmails, ...enrichedNewEmails],
         hasMoreEmails: result.hasMore,
         totalEmails: result.total,
-        isLoadingMore: false
+        isLoadingMore: false,
+        ...extendSelectionWithLoaded(enrichedNewEmails),
       });
       // Fetch full thread counts for newly loaded threads in the background
       if (enrichedNewEmails.length > 0) {
@@ -3003,17 +3214,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const emailIdsArray = Array.from(selectedEmailIds);
+      const { refs, allMatching } = await resolveSelectionRefs(client);
+      const emailIdsArray = refs.map(r => r.id);
 
       if (isAggregateListView()) {
         // Group by owning JMAP account; dispatch through the reaching login client.
-        const bySource = new Map<string, { clientAccountId?: string; ids: string[] }>();
-        for (const emailId of emailIdsArray) {
-          const email = emails.find(e => e.id === emailId);
-          const key = email?.sourceAccountId || '__default__';
-          if (!bySource.has(key)) bySource.set(key, { clientAccountId: email?.sourceClientAccountId, ids: [] });
-          bySource.get(key)!.ids.push(emailId);
-        }
+        const bySource = groupRefsBySource(refs);
 
         const promises = Array.from(bySource.entries()).map(async ([sourceAccountId, { clientAccountId, ids }]) => {
           const acctClient = sourceAccountId === '__default__'
@@ -3078,8 +3284,10 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         tagCounts,
         retainedInViewIds,
         selectedEmailIds: new Set(),
+        allMatchingScope: null,
         isLoading: false
       });
+      if (allMatching) await refreshAfterAllMatchingAction(client);
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to update emails",
@@ -3095,7 +3303,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const emailIdsArray = Array.from(selectedEmailIds);
+      const { refs, allMatching } = await resolveSelectionRefs(client);
+      const emailIdsArray = refs.map(r => r.id);
 
       // Determine if the current folder forces permanent deletion.
       const currentMailbox = mailboxes.find(m => m.id === selectedMailbox);
@@ -3110,13 +3319,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // `sourceClientAccountId` and routes JMAP via `sourceAccountId`. Undecorated
       // emails (normal single-mailbox view) fall into '__default__' = active client.
       const accountMailboxes = get().accountMailboxes;
-      const bySource = new Map<string, { clientAccountId?: string; ids: string[] }>();
-      for (const emailId of emailIdsArray) {
-        const email = emails.find(e => e.id === emailId);
-        const key = email?.sourceAccountId || '__default__';
-        if (!bySource.has(key)) bySource.set(key, { clientAccountId: email?.sourceClientAccountId, ids: [] });
-        bySource.get(key)!.ids.push(emailId);
-      }
+      const bySource = groupRefsBySource(refs);
 
       // Undecorated emails viewed in a shared/group folder directly (non-unified)
       // are reached through the active client but must carry the owner accountId,
@@ -3180,10 +3383,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
             emails: remainingEmails,
             ...mailboxPatch,
             selectedEmailIds: new Set(),
+            allMatchingScope: null,
             selectedEmail: null,
             isLoading: false,
             error: 'Some emails could not be moved: trash folder missing for one or more accounts',
           });
+          if (allMatching) await refreshAfterAllMatchingAction(client);
           return;
         }
       }
@@ -3199,9 +3404,11 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         emails: remainingEmails,
         ...mailboxPatch,
         selectedEmailIds: new Set(),
+        allMatchingScope: null,
         selectedEmail: null,
         isLoading: false
       });
+      if (allMatching) await refreshAfterAllMatchingAction(client);
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to delete emails",
@@ -3216,19 +3423,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const emailIdsArray = Array.from(selectedEmailIds);
+      const { refs, allMatching } = await resolveSelectionRefs(client);
+      const emailIdsArray = refs.map(r => r.id);
 
       if (isAggregateListView()) {
         // Group by owning JMAP account; dispatch through the reaching login client.
         const destMailbox = resolveActionMailboxes().find(mb => mb.id === toMailboxId);
         const jmapDestId = destMailbox?.originalId || toMailboxId;
-        const bySource = new Map<string, { clientAccountId?: string; ids: string[] }>();
-        for (const emailId of emailIdsArray) {
-          const email = emails.find(e => e.id === emailId);
-          const key = email?.sourceAccountId || '__default__';
-          if (!bySource.has(key)) bySource.set(key, { clientAccountId: email?.sourceClientAccountId, ids: [] });
-          bySource.get(key)!.ids.push(emailId);
-        }
+        const bySource = groupRefsBySource(refs);
 
         const promises = Array.from(bySource.entries()).map(async ([sourceAccountId, { clientAccountId, ids }]) => {
           const acctClient = sourceAccountId === '__default__'
@@ -3255,11 +3457,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({
         emails: remainingEmails,
         selectedEmailIds: new Set(),
+        allMatchingScope: null,
         isLoading: false
       });
 
       // Refresh emails to get updated list (honors active search/filters)
-      if (!get().isUnifiedView) {
+      if (allMatching) {
+        await refreshAfterAllMatchingAction(client);
+      } else if (!get().isUnifiedView) {
         await get().refreshCurrentMailbox(client);
       }
     } catch (error) {
@@ -3288,13 +3493,27 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const mode = useSettingsStore.getState().archiveMode;
     const archiveId = archiveMailbox.originalId || archiveMailbox.id;
 
-    const selected = emails.filter(e => selectedEmailIds.has(e.id));
-    if (selected.length === 0) return;
-
     set({ isLoading: true, error: null });
     try {
-      await resolveActionClient(client).batchArchiveEmails(
-        selected.map(e => ({ id: e.id, receivedAt: e.receivedAt })),
+      const actionClient = resolveActionClient(client);
+      const { refs, allMatching } = await resolveSelectionRefs(client);
+      const listed = new Map(emails.map(e => [e.id, e]));
+      // Year/month archiving files each email by its receivedAt, which the
+      // ids past the loaded page do not carry: read it for those.
+      const unlistedIds = refs.filter(r => !listed.has(r.id)).map(r => r.id);
+      if (mode !== 'single' && unlistedIds.length > 0) {
+        for (const email of await actionClient.getSomeEmails(unlistedIds, archiveMailbox.accountId)) {
+          listed.set(email.id, email);
+        }
+      }
+      const selected = refs.map(r => ({ id: r.id, receivedAt: listed.get(r.id)?.receivedAt ?? '' }));
+      if (selected.length === 0) {
+        set({ isLoading: false });
+        return;
+      }
+
+      await actionClient.batchArchiveEmails(
+        selected,
         archiveId,
         mode,
         mailboxes,
@@ -3302,7 +3521,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       );
 
       const remaining = emails.filter(e => !selectedEmailIds.has(e.id));
-      set({ emails: remaining, selectedEmailIds: new Set(), isLoading: false });
+      set({ emails: remaining, selectedEmailIds: new Set(), allMatchingScope: null, isLoading: false });
+      if (allMatching) void get().fetchTagCounts(client);
 
       // Refresh the active or viewed account's mailbox cache after the
       // archive (a year/month archive can create new sub-folders).
@@ -3487,6 +3707,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const { selectedMailbox, emails } = get();
     const mailboxes = resolveActionMailboxes();
     const effectiveClient = resolveActionClient(client);
+    const allMatching = get().isAllMatchingSelected();
 
     const currentMailbox = mailboxes.find(m => m.id === selectedMailbox);
     if (!currentMailbox) return;
@@ -3543,9 +3764,11 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           emails: state.emails.filter(e => !emailIds.includes(e.id)),
           selectedEmail: emailIds.includes(state.selectedEmail?.id || '') ? null : state.selectedEmail,
           selectedEmailIds: new Set(),
+          allMatchingScope: null,
           ...patch,
         };
       });
+      if (allMatching) await refreshAfterAllMatchingAction(client);
     } catch (error) {
       console.error('Failed to batch mark as spam:', error);
       throw error;
@@ -3556,6 +3779,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const { selectedMailbox } = get();
     const mailboxes = resolveActionMailboxes();
     const effectiveClient = resolveActionClient(client);
+    const allMatching = get().isAllMatchingSelected();
 
     // Find inbox (batch operations don't preserve original mailboxes)
     const currentMailbox = mailboxes.find(m => m.id === selectedMailbox);
@@ -3607,9 +3831,11 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           emails: state.emails.filter(e => !emailIds.includes(e.id)),
           selectedEmail: emailIds.includes(state.selectedEmail?.id || '') ? null : state.selectedEmail,
           selectedEmailIds: new Set(),
+          allMatchingScope: null,
           ...patch,
         };
       });
+      if (allMatching) await refreshAfterAllMatchingAction(client);
     } catch (error) {
       console.error('Failed to batch restore emails:', error);
       throw error;

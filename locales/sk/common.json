@@ -244,7 +244,11 @@
       "delete": "Odstrániť",
       "delete_confirm_title": "Odstrániť e-maily",
       "delete_confirm_message": "Naozaj chcete odstrániť {count, plural, one {1 e-mail} other {# e-mailov}}?",
-      "clear_selection": "Zrušiť výber"
+      "clear_selection": "Zrušiť výber",
+      "page_selected": "{count, plural, one {Jediný e-mail na tejto stránke je vybraný} few {Všetky # e-maily na tejto stránke sú vybrané} other {Všetkých # e-mailov na tejto stránke je vybraných}}.",
+      "select_all_matching": "Vybrať {count, plural, one {jediný e-mail} few {všetky # e-maily} other {všetkých # e-mailov}} zodpovedajúce tomuto zobrazeniu",
+      "select_all_matching_uncounted": "Vybrať všetky e-maily zodpovedajúce tomuto zobrazeniu",
+      "all_matching_selected": "{count, plural, one {Jediný e-mail zodpovedajúci tomuto zobrazeniu je vybraný} few {Všetky # e-maily zodpovedajúce tomuto zobrazeniu sú vybrané} other {Všetkých # e-mailov zodpovedajúcich tomuto zobrazeniu je vybraných}}."
     },
     "permanent_delete": "Trvalo odstrániť",
     "permanent_delete_confirm_title": "Trvalo odstrániť",

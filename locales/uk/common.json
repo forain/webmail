@@ -244,7 +244,11 @@
       "delete": "Видалити",
       "delete_confirm_title": "Видалити електронні листи",
       "delete_confirm_message": "Ви впевнені, що хочете видалити {count, plural, one {1 email} other {# emails}}?",
-      "clear_selection": "Очистити вибір"
+      "clear_selection": "Очистити вибір",
+      "page_selected": "{count, plural, one {Єдиний лист на цій сторінці вибрано} few {Усі # листи на цій сторінці вибрано} other {Усі # листів на цій сторінці вибрано}}.",
+      "select_all_matching": "Вибрати {count, plural, one {єдиний лист} few {усі # листи} other {усі # листів}}, що відповідають цьому поданню",
+      "select_all_matching_uncounted": "Вибрати всі листи, що відповідають цьому поданню",
+      "all_matching_selected": "{count, plural, one {Єдиний лист, що відповідає цьому поданню, вибрано} few {Усі # листи, що відповідають цьому поданню, вибрано} other {Усі # листів, що відповідають цьому поданню, вибрано}}."
     },
     "permanent_delete": "Видалити остаточно",
     "permanent_delete_confirm_title": "Видалити назавжди",

@@ -244,7 +244,11 @@
       "delete": "حذف",
       "delete_confirm_title": "حذف ایمیل‌ها",
       "delete_confirm_message": "آیا از حذف {count, plural, one {1 ایمیل} other {# ایمیل}} اطمینان دارید؟",
-      "clear_selection": "پاک کردن انتخاب"
+      "clear_selection": "پاک کردن انتخاب",
+      "page_selected": "{count, plural, one {تنها ایمیل} other {هر # ایمیل}} این صفحه انتخاب شده است.",
+      "select_all_matching": "انتخاب {count, plural, one {تنها ایمیل} other {هر # ایمیل}} مطابق با این نما",
+      "select_all_matching_uncounted": "انتخاب همه ایمیل‌های مطابق با این نما",
+      "all_matching_selected": "{count, plural, one {تنها ایمیل} other {هر # ایمیل}} مطابق با این نما انتخاب شده است."
     },
     "permanent_delete": "حذف دائمی",
     "permanent_delete_confirm_title": "حذف دائمی",

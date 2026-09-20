@@ -340,6 +340,7 @@ export function MailApp({ linkSegments: routeSegments }: MailAppProps = {}) {
     selectMailbox,
     selectedEmailIds,
     selectAllEmails,
+    selectAllMatching,
     clearSelection,
     toggleEmailSelection,
     fetchMailboxes,
@@ -820,7 +821,14 @@ export function MailApp({ linkSegments: routeSegments }: MailAppProps = {}) {
     },
     onSelectAll: () => {
       if (isScheduledView) return;
-      selectAllEmails();
+      // Ctrl/Cmd+A selects the loaded page; pressing it again with the whole
+      // page already selected widens to every email matching the view.
+      const wholePageSelected = activeEmails.length > 0 && activeEmails.every((e) => selectedEmailIds.has(e.id));
+      if (wholePageSelected && activeHasMore) {
+        selectAllMatching();
+      } else {
+        selectAllEmails();
+      }
     },
     onDeselectAll: () => {
       clearSelection();

@@ -244,7 +244,11 @@
       "delete": "刪除",
       "delete_confirm_title": "刪除郵件",
       "delete_confirm_message": "您確定要刪除{count, plural, one {1 封郵件} other {# 封郵件}}嗎？",
-      "clear_selection": "清除選取"
+      "clear_selection": "清除選取",
+      "page_selected": "已選取本頁的{count, plural, one {1} other {全部 #}} 封郵件。",
+      "select_all_matching": "選取符合此檢視的{count, plural, one {1} other {全部 #}} 封郵件",
+      "select_all_matching_uncounted": "選取符合此檢視的所有郵件",
+      "all_matching_selected": "已選取符合此檢視的{count, plural, one {1} other {全部 #}} 封郵件。"
     },
     "permanent_delete": "永久刪除",
     "permanent_delete_confirm_title": "永久刪除",

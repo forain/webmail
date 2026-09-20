@@ -209,7 +209,11 @@
       "delete_confirm_title": "מחק מיילים",
       "delete_confirm_message": "האם למחוק {count, plural, one {הודעת דוא״ל אחת} other {# הודעות דוא״ל}}?",
       "clear_selection": "נקה בחירה",
-      "selected_messages": "{count, plural, one {דוא״ל 1} other {# דוא״ל}} שנבחרו"
+      "selected_messages": "{count, plural, one {דוא״ל 1} other {# דוא״ל}} שנבחרו",
+      "page_selected": "{count, plural, one {הודעת הדוא״ל היחידה} other {כל # הודעות הדוא״ל}} בעמוד זה נבחרו.",
+      "select_all_matching": "בחירת {count, plural, one {הודעת הדוא״ל היחידה} other {כל # הודעות הדוא״ל}} התואמות לתצוגה זו",
+      "select_all_matching_uncounted": "בחירת כל הודעות הדוא״ל התואמות לתצוגה זו",
+      "all_matching_selected": "{count, plural, one {הודעת הדוא״ל היחידה} other {כל # הודעות הדוא״ל}} התואמות לתצוגה זו נבחרו."
     },
     "permanent_delete": "מחק לצמיתות",
     "permanent_delete_confirm_title": "מחק לצמיתות",

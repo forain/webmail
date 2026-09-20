@@ -50,6 +50,68 @@ export interface UnifiedMailboxCounts {
   totalEmails: number;
 }
 
+/**
+ * One email of a "select all matching" enumeration: its id plus the source
+ * stamps the batch actions route by (see `UnifiedAccountClient`). Undecorated
+ * for the plain single-account views, exactly like the listed emails.
+ */
+export interface EmailIdRef {
+  id: string;
+  sourceAccountId?: string;
+  sourceClientAccountId?: string;
+}
+
+export interface EmailIdsResult {
+  refs: EmailIdRef[];
+  total: number;
+  complete: boolean;
+  errors: Map<string, string>; // accountId -> error message
+}
+
+/**
+ * Enumerates every email id of an aggregate view across accounts, for
+ * "select all matching". `targetFor` yields the per-account JMAP filter and
+ * accountId (null to skip the account), the same way the paged loaders build
+ * theirs; the refs come back stamped with the account's source ids so the
+ * batch actions can route them like listed emails. Per-account failures land
+ * in `errors` and make the result incomplete: an action must not silently
+ * cover fewer accounts than the list shows.
+ */
+export async function fanOutEmailIds(
+  accounts: UnifiedAccountClient[],
+  targetFor: (account: UnifiedAccountClient) => { filter: Record<string, unknown>; jmapAccountId: string | undefined } | null,
+): Promise<EmailIdsResult> {
+  const errors = new Map<string, string>();
+  const refs: EmailIdRef[] = [];
+  let total = 0;
+  let complete = true;
+
+  const outcomes = await Promise.allSettled(accounts.map(async (account) => {
+    const target = targetFor(account);
+    if (!target) return null;
+    try {
+      const result = await account.client.queryAllEmailIds(target.filter, target.jmapAccountId);
+      return { account, result };
+    } catch (err) {
+      errors.set(account.accountId, err instanceof Error ? err.message : String(err));
+      return null;
+    }
+  }));
+
+  for (const outcome of outcomes) {
+    if (outcome.status !== 'fulfilled' || outcome.value === null) continue;
+    const { account, result } = outcome.value;
+    for (const id of result.ids) {
+      refs.push({ id, sourceAccountId: account.jmapAccountId, sourceClientAccountId: account.clientAccountId });
+    }
+    total += result.total;
+    if (!result.complete) complete = false;
+  }
+  if (errors.size > 0) complete = false;
+
+  return { refs, total, complete, errors };
+}
+
 const ALL_UNIFIED_ROLES: UnifiedMailboxRole[] = [
   'inbox', 'sent', 'drafts', 'trash', 'archive', 'junk',
 ];
@@ -213,7 +275,7 @@ export async function advancedSearchUnifiedEmails(
  * namespaced (`${ownerId}:${origId}`) so we must use `originalId` and pass the
  * owner's accountId through the request.
  */
-function resolveJmapTarget(
+export function resolveJmapTarget(
   account: UnifiedAccountClient,
   mailbox: Mailbox,
 ): { jmapMailboxId: string; jmapAccountId: string | undefined } {

@@ -244,7 +244,11 @@
       "delete": "Slett",
       "delete_confirm_title": "Slett e-poster",
       "delete_confirm_message": "Er du sikker på at du vil slette {count, plural, one {1 e-post} other {# e-poster}}?",
-      "clear_selection": "Fjern valg"
+      "clear_selection": "Fjern valg",
+      "page_selected": "{count, plural, one {Den ene e-posten} other {Alle # e-postene}} på denne siden er valgt.",
+      "select_all_matching": "Velg {count, plural, one {den ene e-posten} other {alle # e-postene}} som samsvarer med denne visningen",
+      "select_all_matching_uncounted": "Velg alle e-poster som samsvarer med denne visningen",
+      "all_matching_selected": "{count, plural, one {Den ene e-posten} other {Alle # e-postene}} som samsvarer med denne visningen, er valgt."
     },
     "permanent_delete": "Slett permanent",
     "permanent_delete_confirm_title": "Slett permanent",

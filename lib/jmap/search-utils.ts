@@ -48,6 +48,38 @@ export function toWildcardQuery(query: string): string {
     .join(' ');
 }
 
+/**
+ * The Email/query filter of a plain text search: Stalwart's FTS `text`
+ * condition (prefix-wildcarded, see toWildcardQuery), optionally ANDed with
+ * the folder scope. Shared by `searchEmails` and by "select all matching",
+ * which must enumerate exactly the ids that search lists.
+ */
+export function buildTextSearchFilter(query: string, mailboxId?: string): Record<string, unknown> {
+  const textFilter: Record<string, unknown> = { text: toWildcardQuery(query) };
+  if (!mailboxId) return textFilter;
+  return { operator: "AND", conditions: [{ inMailbox: mailboxId }, textFilter] };
+}
+
+/**
+ * The Email/query filter of a folder (or tag) listing: mailbox membership
+ * and/or a keyword, ANDed with an arbitrary `extraFilter` (the category-tab
+ * fragment). Shared by `getEmails` and "select all matching".
+ */
+export function buildFolderFilter(
+  mailboxId?: string,
+  hasKeyword?: string,
+  extraFilter?: Record<string, unknown>,
+): Record<string, unknown> {
+  const simple: { inMailbox?: string; hasKeyword?: string } = {};
+  if (mailboxId) simple.inMailbox = mailboxId;
+  if (hasKeyword) simple.hasKeyword = hasKeyword;
+  if (!extraFilter) return simple;
+  return {
+    operator: "AND",
+    conditions: [...(Object.keys(simple).length > 0 ? [simple] : []), extraFilter],
+  };
+}
+
 export function buildJMAPFilter(
   textQuery: string,
   filters: SearchFilters,

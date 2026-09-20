@@ -244,7 +244,11 @@
       "delete": "Slet",
       "delete_confirm_title": "Slet e-mails",
       "delete_confirm_message": "Er du sikker på, at du vil slette {count, plural, one {1 e-mail} other {# e-mails}}?",
-      "clear_selection": "Ryd markering"
+      "clear_selection": "Ryd markering",
+      "page_selected": "{count, plural, one {Den ene e-mail} other {Alle # e-mails}} på denne side er valgt.",
+      "select_all_matching": "Vælg {count, plural, one {den ene e-mail} other {alle # e-mails}}, der matcher denne visning",
+      "select_all_matching_uncounted": "Vælg alle e-mails, der matcher denne visning",
+      "all_matching_selected": "{count, plural, one {Den ene e-mail} other {Alle # e-mails}}, der matcher denne visning, er valgt."
     },
     "permanent_delete": "Slet permanent",
     "permanent_delete_confirm_title": "Slet permanent",

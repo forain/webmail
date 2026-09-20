@@ -244,7 +244,11 @@
       "delete": "Löschen",
       "delete_confirm_title": "E-Mails löschen",
       "delete_confirm_message": "Möchten Sie {count, plural, one {1 E-Mail} other {# E-Mails}} wirklich löschen?",
-      "clear_selection": "Auswahl aufheben"
+      "clear_selection": "Auswahl aufheben",
+      "page_selected": "{count, plural, one {Die einzige E-Mail} other {Alle # E-Mails}} auf dieser Seite {count, plural, one {ist} other {sind}} ausgewählt.",
+      "select_all_matching": "{count, plural, one {Die einzige E-Mail} other {Alle # E-Mails}} in dieser Ansicht auswählen",
+      "select_all_matching_uncounted": "Alle E-Mails in dieser Ansicht auswählen",
+      "all_matching_selected": "{count, plural, one {Die einzige E-Mail} other {Alle # E-Mails}} in dieser Ansicht {count, plural, one {ist} other {sind}} ausgewählt."
     },
     "permanent_delete": "Endgültig löschen",
     "permanent_delete_confirm_title": "Endgültig löschen",

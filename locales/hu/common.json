@@ -244,7 +244,11 @@
       "delete": "Törlés",
       "delete_confirm_title": "E-mailek törlése",
       "delete_confirm_message": "Biztosan törölni szeretnéd {count, plural, one {az 1 e-mailt} other {a # e-mailt}}?",
-      "clear_selection": "Kijelölés megszüntetése"
+      "clear_selection": "Kijelölés megszüntetése",
+      "page_selected": "Az oldalon lévő {count, plural, one {1 e-mail} other {mind a # e-mail}} ki van jelölve.",
+      "select_all_matching": "A nézetnek megfelelő {count, plural, one {1 e-mail} other {mind a # e-mail}} kijelölése",
+      "select_all_matching_uncounted": "A nézetnek megfelelő összes e-mail kijelölése",
+      "all_matching_selected": "A nézetnek megfelelő {count, plural, one {1 e-mail} other {mind a # e-mail}} ki van jelölve."
     },
     "permanent_delete": "Végleges törlés",
     "permanent_delete_confirm_title": "Végleges törlés",

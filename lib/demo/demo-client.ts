@@ -156,7 +156,9 @@ export class DemoJMAPClient implements IJMAPClient {
   /**
    * Minimal JMAP filter evaluator for demo mode: supports the conditions the
    * message-list category tabs use (hasKeyword / notKeyword / from and
-   * AND / OR / NOT operators). Unknown conditions match nothing.
+   * AND / OR / NOT operators) plus inMailbox and text, so "select all
+   * matching" can evaluate a folder or search scope. Unknown conditions
+   * match nothing.
    */
   private matchesFilter(e: Email, filter: Record<string, unknown>): boolean {
     if (typeof filter.operator === 'string') {
@@ -168,8 +170,14 @@ export class DemoJMAPClient implements IJMAPClient {
         default: return false;
       }
     }
+    if (typeof filter.inMailbox === 'string' && !e.mailboxIds[filter.inMailbox]) return false;
     if (typeof filter.hasKeyword === 'string' && !e.keywords[filter.hasKeyword]) return false;
     if (typeof filter.notKeyword === 'string' && e.keywords[filter.notKeyword]) return false;
+    if (typeof filter.text === 'string') {
+      const q = filter.text.toLowerCase().replace(/\*/g, '');
+      const text = [e.subject, e.preview, e.from?.[0]?.name, e.from?.[0]?.email].filter(Boolean).join(' ').toLowerCase();
+      if (!text.includes(q)) return false;
+    }
     if (typeof filter.from === 'string') {
       const q = filter.from.toLowerCase();
       const match = (e.from || []).some(f =>
@@ -309,6 +317,17 @@ export class DemoJMAPClient implements IJMAPClient {
     const total = filtered.length;
     const emails = filtered.slice(position, position + limit);
     return { emails, hasMore: position + limit < total, total };
+  }
+
+  async queryAllEmailIds(filter: Record<string, unknown>, _accountId?: string, options?: { maxIds?: number }): Promise<{ ids: string[]; total: number; complete: boolean }> {
+    const filtered = Object.keys(filter).length > 0
+      ? this.data.emails.filter(e => this.matchesFilter(e, filter))
+      : [...this.data.emails];
+    filtered.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    const total = filtered.length;
+    const maxIds = options?.maxIds ?? total;
+    const ids = filtered.slice(0, maxIds).map(e => e.id);
+    return { ids, total, complete: ids.length === total };
   }
 
   async searchSentRecipients(query: string, _sentMailboxId: string, _accountId?: string, _limit: number = 60): Promise<Array<{ name: string; email: string }>> {

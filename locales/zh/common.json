@@ -244,7 +244,11 @@
       "delete": "删除",
       "delete_confirm_title": "删除邮件",
       "delete_confirm_message": "确定要删除{count, plural, one {1 封邮件} other {# 封邮件}}吗？",
-      "clear_selection": "清除选择"
+      "clear_selection": "清除选择",
+      "page_selected": "已选取本页的{count, plural, one {1} other {全部 #}} 封邮件。",
+      "select_all_matching": "选取与此视图匹配的{count, plural, one {1} other {全部 #}} 封邮件",
+      "select_all_matching_uncounted": "选取与此视图匹配的所有邮件",
+      "all_matching_selected": "已选取与此视图匹配的{count, plural, one {1} other {全部 #}} 封邮件。"
     },
     "permanent_delete": "永久删除",
     "permanent_delete_confirm_title": "永久删除",

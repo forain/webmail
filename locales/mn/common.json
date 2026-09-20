@@ -244,7 +244,11 @@
       "delete": "Устгах",
       "delete_confirm_title": "Имэйл устгах",
       "delete_confirm_message": "Та устгахдаа итгэлтэй байна уу{count, plural, one {1 имэйл} other {# имэйл}}?",
-      "clear_selection": "Сонголтыг арилгах"
+      "clear_selection": "Сонголтыг арилгах",
+      "page_selected": "Энэ хуудасны {count, plural, one {1 имэйл} other {бүх # имэйл}} сонгогдсон.",
+      "select_all_matching": "Энэ харагдацад тохирох {count, plural, one {1 имэйл} other {бүх # имэйл}} сонгох",
+      "select_all_matching_uncounted": "Энэ харагдацад тохирох бүх имэйлийг сонгох",
+      "all_matching_selected": "Энэ харагдацад тохирох {count, plural, one {1 имэйл} other {бүх # имэйл}} сонгогдсон."
     },
     "permanent_delete": "Бүрмөсөн устгах",
     "permanent_delete_confirm_title": "Бүрмөсөн устгах",

@@ -2,7 +2,7 @@ import { generateUUID } from '@/lib/utils';
 import type { Email, Mailbox, MailboxRights, StateChange, AccountStates, CollectionChanges, ShareNotification, BusyPeriod, CalendarParticipantIdentity, CalendarEventNotification, Thread, Identity, EmailAddress, ContactCard, AddressBook, AddressBookRights, VacationResponse, Calendar, CalendarComponentType, CalendarRights, CalendarEvent, CalendarEventFilter, CalendarTask, CreateCalendarOptions, FileNode, FileNodeFilter, FileNodeRights, Principal, PushSubscription, EmailPushConfig, EmailSubmission, ScheduledEmail, SendEmailResult, SharedAccount } from "./types";
 import type { SieveScript, SieveCapabilities } from "./sieve-types";
 import type { IJMAPClient, KeywordDiscoveryResult, KeywordInfo, KeywordMigration } from "./client-interface";
-import { toWildcardQuery } from "./search-utils";
+import { buildFolderFilter, buildTextSearchFilter } from "./search-utils";
 import { attachSearchSnippets, filterHasSnippetTerms, snippetFilterFor, type SearchSnippetResult } from "@/lib/search-snippet";
 import { batched, itemsPerRequest } from "./request-limits";
 import { keywordPointer } from "./patch-pointer";
@@ -1640,24 +1640,9 @@ export class JMAPClient implements IJMAPClient {
   async getEmails(mailboxId?: string, accountId?: string, limit: number = 50, position: number = 0, hasKeyword?: string, pinnedFirst?: boolean, extraFilter?: Record<string, unknown>, order: SortLevel[] = []): Promise<{ emails: Email[], hasMore: boolean, total: number, state?: string }> {
     try {
       const targetAccountId = accountId || this.accountId;
-      const simple: { inMailbox?: string; hasKeyword?: string } = {};
-      if (mailboxId) {
-        simple.inMailbox = mailboxId;
-      }
-      if (hasKeyword) {
-        simple.hasKeyword = hasKeyword;
-      }
       // `extraFilter` is an arbitrary FilterCondition/FilterOperator ANDed
       // into the view - the message-list category tabs' search contract.
-      const filter: Record<string, unknown> = extraFilter
-        ? {
-            operator: "AND",
-            conditions: [
-              ...(Object.keys(simple).length > 0 ? [simple] : []),
-              extraFilter,
-            ],
-          }
-        : simple;
+      const filter = buildFolderFilter(mailboxId, hasKeyword, extraFilter);
       // Pinned-first and the configured list order (#718) use the hasKeyword
       // sort comparator (RFC 8621 §4.4.2); every page of a view must use the
       // same sort or pagination tears, so the sort is built from settings the
@@ -2852,21 +2837,7 @@ export class JMAPClient implements IJMAPClient {
       // Use the JMAP "text" filter which searches across from, to, cc, bcc,
       // subject, and body. Stalwart's FTS engine supports wildcard prefix
       // matching (e.g. "pri*" matches "prime", "primary", "private", etc.)
-      const wildcardQuery = toWildcardQuery(query);
-      const textFilter: Record<string, unknown> = { text: wildcardQuery };
-
-      let filter: Record<string, unknown>;
-      if (mailboxId) {
-        filter = {
-          operator: "AND",
-          conditions: [
-            { inMailbox: mailboxId },
-            textFilter,
-          ],
-        };
-      } else {
-        filter = textFilter;
-      }
+      const filter = buildTextSearchFilter(query, mailboxId);
 
       const response = await this.request([
         ["Email/query", {
@@ -2934,6 +2905,64 @@ export class JMAPClient implements IJMAPClient {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Every email id matching `filter`, walked with Email/query alone (no
+   * Email/get), for "select all matching": a batch action over a whole folder
+   * or search result rather than the loaded page. Pages are sized to the
+   * server's maxObjectsInGet (the scale it advertises for one call) and the
+   * walk stops when a page comes back short or `maxIds` is reached, in which
+   * case `complete` is false. Ids are deduplicated: mail arriving mid-walk
+   * shifts positions and can repeat an id across pages.
+   */
+  async queryAllEmailIds(
+    filter: Record<string, unknown>,
+    accountId?: string,
+    options?: { maxIds?: number },
+  ): Promise<{ ids: string[]; total: number; complete: boolean }> {
+    const targetAccountId = accountId || this.accountId;
+    // An empty FilterCondition is rejected by servers; omit it to mean "all".
+    const hasFilter = Object.keys(filter).length > 0;
+    const pageSize = Math.max(1, this.getMaxObjectsInGet());
+    const maxIds = options?.maxIds ?? Number.POSITIVE_INFINITY;
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    let total = 0;
+    let position = 0;
+
+    while (ids.length < maxIds) {
+      const limit = Math.min(pageSize, maxIds - ids.length);
+      const response = await this.request([
+        ["Email/query", {
+          accountId: targetAccountId,
+          ...(hasFilter ? { filter } : {}),
+          sort: [{ property: "receivedAt", isAscending: false }],
+          limit,
+          position,
+          calculateTotal: position === 0,
+        }, "0"],
+      ]);
+      const [method, result] = response.methodResponses?.[0] ?? [];
+      if (method !== "Email/query") {
+        throw new Error((result as { description?: string })?.description || "Email/query failed");
+      }
+      const page = ((result as { ids?: string[] })?.ids) ?? [];
+      if (position === 0) total = (result as { total?: number })?.total ?? 0;
+      for (const id of page) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          ids.push(id);
+        }
+      }
+      position += page.length;
+      // A short page is the last one; a full page may still be the last when
+      // `total` says so, which saves the empty trailing request.
+      if (page.length < limit || (total > 0 && position >= total)) {
+        return { ids, total: Math.max(total, ids.length), complete: true };
+      }
+    }
+    return { ids, total: Math.max(total, ids.length), complete: false };
   }
 
   async advancedSearchEmails(

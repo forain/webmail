@@ -244,7 +244,11 @@
       "delete": "Odstranit",
       "delete_confirm_title": "Odstranit zprávy",
       "delete_confirm_message": "Opravdu chcete odstranit {count, plural, one {1 zprávu} few {# zprávy} other {# zpráv}}?",
-      "clear_selection": "Zrušit výběr"
+      "clear_selection": "Zrušit výběr",
+      "page_selected": "{count, plural, one {Je vybrán 1 e-mail} few {Jsou vybrány všechny # e-maily} other {Je vybráno všech # e-mailů}} na této stránce.",
+      "select_all_matching": "Vybrat {count, plural, one {1 e-mail} few {všechny # e-maily} other {všech # e-mailů}} odpovídající tomuto zobrazení",
+      "select_all_matching_uncounted": "Vybrat všechny e-maily odpovídající tomuto zobrazení",
+      "all_matching_selected": "{count, plural, one {Je vybrán 1 e-mail} few {Jsou vybrány všechny # e-maily} other {Je vybráno všech # e-mailů}} odpovídající tomuto zobrazení."
     },
     "permanent_delete": "Trvale odstranit",
     "permanent_delete_confirm_title": "Trvalé odstranění",

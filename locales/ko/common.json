@@ -244,7 +244,11 @@
       "delete": "삭제",
       "delete_confirm_title": "메일 삭제",
       "delete_confirm_message": "정말 선택한 {count, plural, other {#개의 메일}}을 삭제할까요?",
-      "clear_selection": "선택 취소"
+      "clear_selection": "선택 취소",
+      "page_selected": "이 페이지의 이메일 {count, plural, other {#개}}가 모두 선택되었습니다.",
+      "select_all_matching": "이 보기와 일치하는 이메일 {count, plural, other {#개}} 모두 선택",
+      "select_all_matching_uncounted": "이 보기와 일치하는 모든 이메일 선택",
+      "all_matching_selected": "이 보기와 일치하는 이메일 {count, plural, other {#개}}가 모두 선택되었습니다."
     },
     "permanent_delete": "영구 삭제",
     "permanent_delete_confirm_title": "영구 삭제",

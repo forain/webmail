@@ -244,7 +244,11 @@
       "delete": "حذف",
       "delete_confirm_title": "حذف الرسائل",
       "delete_confirm_message": "هل أنت متأكد أنك تريد حذف {count, plural, one {رسالة واحدة} other {# رسالة}}؟",
-      "clear_selection": "إلغاء التحديد"
+      "clear_selection": "إلغاء التحديد",
+      "page_selected": "تم تحديد {count, plural, one {رسالة واحدة} other {# رسالة}} في هذه الصفحة.",
+      "select_all_matching": "تحديد {count, plural, one {الرسالة الوحيدة} other {كل # رسالة}} المطابقة لهذا العرض",
+      "select_all_matching_uncounted": "تحديد كل الرسائل المطابقة لهذا العرض",
+      "all_matching_selected": "تم تحديد {count, plural, one {الرسالة الوحيدة} other {كل # رسالة}} المطابقة لهذا العرض."
     },
     "permanent_delete": "حذف نهائي",
     "permanent_delete_confirm_title": "حذف نهائي",

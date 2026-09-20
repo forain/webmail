@@ -244,7 +244,11 @@
       "delete": "削除",
       "delete_confirm_title": "メールを削除",
       "delete_confirm_message": "{count, plural, one {1件} other {#件}}のメールを削除しますか？",
-      "clear_selection": "選択を解除"
+      "clear_selection": "選択を解除",
+      "page_selected": "このページの{count, plural, one {1} other {#}}通のメールがすべて選択されています。",
+      "select_all_matching": "この表示に一致する{count, plural, one {1} other {#}}通のメールをすべて選択",
+      "select_all_matching_uncounted": "この表示に一致するすべてのメールを選択",
+      "all_matching_selected": "この表示に一致する{count, plural, one {1} other {#}}通のメールがすべて選択されています。"
     },
     "permanent_delete": "完全に削除",
     "permanent_delete_confirm_title": "完全に削除",

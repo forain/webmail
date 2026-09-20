@@ -244,7 +244,11 @@
       "delete": "Suprimeix",
       "delete_confirm_title": "Suprimeix els correus",
       "delete_confirm_message": "Segur que voleu suprimir {count, plural, one {1 correu} other {# correus}}?",
-      "clear_selection": "Neteja la selecció"
+      "clear_selection": "Neteja la selecció",
+      "page_selected": "{count, plural, one {L'únic correu} other {Tots els # correus}} d'aquesta pàgina està seleccionat.",
+      "select_all_matching": "Selecciona {count, plural, one {l'únic correu} other {tots els # correus}} que coincideixen amb aquesta vista",
+      "select_all_matching_uncounted": "Selecciona tots els correus que coincideixen amb aquesta vista",
+      "all_matching_selected": "{count, plural, one {L'únic correu} other {Tots els # correus}} que coincideixen amb aquesta vista està seleccionat."
     },
     "permanent_delete": "Suprimeix definitivament",
     "permanent_delete_confirm_title": "Suprimeix definitivament",

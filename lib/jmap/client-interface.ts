@@ -208,6 +208,17 @@ export interface IJMAPClient {
     position?: number,
   ): Promise<{ emails: Email[]; hasMore: boolean; total: number }>;
   /**
+   * Every email id matching a JMAP filter, walked page by page with
+   * Email/query alone - the backing of "select all matching", which lets a
+   * batch action cover a whole folder or search result instead of the loaded
+   * page. `complete` is false when `maxIds` cut the walk short.
+   */
+  queryAllEmailIds(
+    filter: Record<string, unknown>,
+    accountId?: string,
+    options?: { maxIds?: number },
+  ): Promise<{ ids: string[]; total: number; complete: boolean }>;
+  /**
    * Lean recipient search for compose autocomplete ("search the server" action):
    * finds messages in `sentMailboxId` whose to/cc matches `query` and returns
    * only the matching addresses (fetches just the `to`/`cc` properties - no

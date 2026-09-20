@@ -90,7 +90,11 @@ export function EmailList({
   const {
     selectedEmailIds,
     selectAllEmails: _selectAllEmails,
+    selectAllMatching,
+    isAllMatchingSelected,
+    resolveSelectedEmailIds,
     clearSelection,
+    totalEmails,
     batchMarkAsRead,
     batchDelete,
     batchMoveToMailbox,
@@ -228,6 +232,14 @@ export function EmailList({
   );
 
   const hasSelection = selectedEmailIds.size > 0;
+  // "Select all matching" (Gmail-style): once every loaded row is selected
+  // and the view has more pages, offer to widen the selection to the whole
+  // folder / search result. Counts come from the server's calculateTotal.
+  const allMatchingSelected = hasSelection && isAllMatchingSelected();
+  const wholePageSelected = hasSelection && emails.length > 0 && emails.every((e) => selectedEmailIds.has(e.id));
+  const canSelectAllMatching = !isScheduledView && wholePageSelected && !allMatchingSelected && hasMoreEmails;
+  const matchingCount = Math.max(totalEmails, emails.length);
+  const selectedCount = allMatchingSelected ? matchingCount : selectedEmailIds.size;
 
   const handleBatchMarkAsRead = async (read: boolean) => {
     if (!client || isProcessing) return;
@@ -243,7 +255,7 @@ export function EmailList({
     if (!client || isProcessing) return;
     setIsProcessing(true);
     try {
-      const emailIds = Array.from(selectedEmailIds);
+      const emailIds = await resolveSelectedEmailIds(client);
       await batchUndoSpam(client, emailIds);
       const { toast } = await import('sonner');
       toast.success(tSpam('toast_not_spam_batch', { count: emailIds.length }));
@@ -266,8 +278,8 @@ export function EmailList({
         ? t('permanent_delete_confirm_title')
         : t('batch_actions.delete_confirm_title'),
       message: isInTrash
-        ? t('permanent_delete_confirm_batch_message', { count: selectedEmailIds.size })
-        : t('batch_actions.delete_confirm_message', { count: selectedEmailIds.size }),
+        ? t('permanent_delete_confirm_batch_message', { count: selectedCount })
+        : t('batch_actions.delete_confirm_message', { count: selectedCount }),
       confirmText: isInTrash
         ? t('permanent_delete')
         : t('batch_actions.delete'),
@@ -385,13 +397,13 @@ export function EmailList({
         ref={batchToolbarRef}
         className={cn(
           "transition-all duration-300 ease-in-out overflow-hidden",
-          hasSelection && !isScheduledView ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+          hasSelection && !isScheduledView ? "max-h-32 opacity-100" : "max-h-0 opacity-0"
         )}
       >
         <div className="px-4 py-2 border-b bg-accent/30 border-border flex items-center justify-between">
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-3 duration-300">
             <span className="text-sm font-medium text-foreground">
-              {t('batch_actions.selected_messages', { count: selectedEmailIds.size })}
+              {t('batch_actions.selected_messages', { count: selectedCount })}
             </span>
           </div>
           <div className="flex items-center gap-1 animate-in fade-in slide-in-from-right-3 duration-300">
@@ -466,6 +478,41 @@ export function EmailList({
             </Button>
           </div>
         </div>
+        {(canSelectAllMatching || allMatchingSelected) && (
+          <div
+            className="px-4 py-1.5 text-xs text-center text-muted-foreground border-b border-border bg-accent/20"
+            data-testid="select-all-matching-banner"
+          >
+            {allMatchingSelected ? (
+              <>
+                {t('batch_actions.all_matching_selected', { count: matchingCount })}{' '}
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={isProcessing}
+                  className="font-medium text-primary hover:underline disabled:opacity-50"
+                >
+                  {t('batch_actions.clear_selection')}
+                </button>
+              </>
+            ) : (
+              <>
+                {t('batch_actions.page_selected', { count: emails.length })}{' '}
+                <button
+                  type="button"
+                  onClick={selectAllMatching}
+                  disabled={isProcessing}
+                  className="font-medium text-primary hover:underline disabled:opacity-50"
+                  data-testid="select-all-matching"
+                >
+                  {totalEmails > emails.length
+                    ? t('batch_actions.select_all_matching', { count: totalEmails })
+                    : t('batch_actions.select_all_matching_uncounted')}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Advanced Search Filter Chips */}
@@ -630,7 +677,7 @@ export function EmailList({
           selectedMailbox={selectedMailbox}
           currentMailboxRole={effectiveMailboxRole}
           isMultiSelect={selectedEmailIds.has(contextMenuEmail.id)}
-          selectedCount={selectedEmailIds.size}
+          selectedCount={selectedCount}
           onReply={() => onReply?.(contextMenuEmail!)}
           onReplyAll={() => onReplyAll?.(contextMenuEmail!)}
           onForward={() => onForward?.(contextMenuEmail!)}
@@ -660,8 +707,8 @@ export function EmailList({
           onBatchMoveToMailbox={(mailboxId) => client && batchMoveToMailbox(client, mailboxId)}
           onBatchMarkAsSpam={async () => {
             if (client) {
-              const emailIds = Array.from(selectedEmailIds);
               try {
+                const emailIds = await resolveSelectedEmailIds(client);
                 await batchMarkAsSpam(client, emailIds);
                 const { toast } = await import('sonner');
                 toast.success(
@@ -675,8 +722,8 @@ export function EmailList({
           }}
           onBatchUndoSpam={async () => {
             if (client) {
-              const emailIds = Array.from(selectedEmailIds);
               try {
+                const emailIds = await resolveSelectedEmailIds(client);
                 await batchUndoSpam(client, emailIds);
                 const { toast } = await import('sonner');
                 toast.success(

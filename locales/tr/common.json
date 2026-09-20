@@ -244,7 +244,11 @@
       "delete": "Sil",
       "delete_confirm_title": "E-postaları sil",
       "delete_confirm_message": "{count, plural, one {1 e-postayı} other {# e-postayı}} silmek istediğinizden emin misiniz?",
-      "clear_selection": "Seçimi temizle"
+      "clear_selection": "Seçimi temizle",
+      "page_selected": "Bu sayfadaki {count, plural, one {tek e-posta} other {# e-postanın tümü}} seçildi.",
+      "select_all_matching": "Bu görünümle eşleşen {count, plural, one {tek e-postayı} other {# e-postanın tümünü}} seç",
+      "select_all_matching_uncounted": "Bu görünümle eşleşen tüm e-postaları seç",
+      "all_matching_selected": "Bu görünümle eşleşen {count, plural, one {tek e-posta} other {# e-postanın tümü}} seçildi."
     },
     "permanent_delete": "Kalıcı olarak sil",
     "permanent_delete_confirm_title": "Kalıcı olarak sil",

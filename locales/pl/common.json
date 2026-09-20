@@ -244,7 +244,11 @@
       "delete": "Usuń",
       "delete_confirm_title": "Usuń wiadomości",
       "delete_confirm_message": "Czy na pewno chcesz usunąć {count, plural, one {1 wiadomość} other {# wiadomości}}?",
-      "clear_selection": "Wyczyść zaznaczenie"
+      "clear_selection": "Wyczyść zaznaczenie",
+      "page_selected": "{count, plural, one {Jedyna wiadomość na tej stronie jest zaznaczona} few {Wszystkie # wiadomości na tej stronie są zaznaczone} other {Wszystkie # wiadomości na tej stronie są zaznaczone}}.",
+      "select_all_matching": "Zaznacz {count, plural, one {jedyną wiadomość pasującą} few {wszystkie # wiadomości pasujące} other {wszystkie # wiadomości pasujące}} do tego widoku",
+      "select_all_matching_uncounted": "Zaznacz wszystkie wiadomości pasujące do tego widoku",
+      "all_matching_selected": "{count, plural, one {Jedyna wiadomość pasująca do tego widoku jest zaznaczona} few {Wszystkie # wiadomości pasujące do tego widoku są zaznaczone} other {Wszystkie # wiadomości pasujące do tego widoku są zaznaczone}}."
     },
     "permanent_delete": "Usuń trwale",
     "permanent_delete_confirm_title": "Trwałe usunięcie",
