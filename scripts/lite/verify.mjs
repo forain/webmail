@@ -45,7 +45,10 @@ export function verifyExport({ root = repoRoot, target, safeBundleBytes = STALWA
 
   const required = resolvedTarget === "stalwart"
     ? ["index.html", "config.json", "policy.json", "manifest.json", "LITE-README.md", "lite-build.json"]
-    : ["index.html", "404.html", "config.json", "policy.json", "manifest.webmanifest", "_redirects", "_headers", "LITE-README.md", "lite-build.json"];
+    // connector.json is the static target only: the Stalwart bundle is served
+    // without custom headers, so a connector's cross-origin probe could not
+    // read it anyway (it falls back to adding the instance unverified).
+    : ["index.html", "404.html", "config.json", "policy.json", "connector.json", "manifest.webmanifest", "_redirects", "_headers", "LITE-README.md", "lite-build.json"];
   for (const file of required) {
     if (!existsSync(join(outDir, file))) problems.push(`missing out/${file}`);
   }

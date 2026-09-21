@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import {
   STALWART_EXCLUDED_DIRS, STALWART_EXCLUDED_FILES, STALWART_ZIP_NAME,
-  buildCaddyExample, buildHeaders, buildLiteConfig, buildLitePolicy, buildManifest, buildNginxExample, buildNotFoundShim, buildReadme, buildRedirects, buildRootRedirect,
+  buildCaddyExample, buildConnectorCapabilities, buildHeaders, buildLiteConfig, buildLitePolicy, buildManifest, buildNginxExample, buildNotFoundShim, buildReadme, buildRedirects, buildRootRedirect,
   buildStalwartEntry, buildStalwartManifest, buildStalwartReadme, buildZip, collectZipEntries, discoverBuiltLocales, discoverShellDirs, findSegmentPrefetchDirs, isMainModule, makeBuildId, normalizeBasePath, parseLiteTarget, resolveRepoRoot,
 } from "./lib.mjs";
 
@@ -64,6 +64,9 @@ function staticFiles({ config, basePath, locales, defaultLocale, version, commit
   return {
     "config.json": JSON.stringify(config, null, 2) + "\n",
     "policy.json": JSON.stringify(buildLitePolicy(), null, 2) + "\n",
+    // The file form of /api/connector/capabilities - a static export has no
+    // route handlers, and a connector probing this instance needs an answer.
+    "connector.json": buildConnectorCapabilities({ appName: config.appName, version, basePath }),
     "manifest.webmanifest": JSON.stringify(buildManifest({ appName: config.appName, basePath }), null, 2) + "\n",
     "index.html": buildRootRedirect({ basePath, locales, defaultLocale }),
     // Replaces Next's default not-found page: only this shim replays deep links

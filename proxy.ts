@@ -77,7 +77,7 @@ export function isStaticAssetPath(pathname: string): boolean {
  * Next-Url, Cookie, Accept-Language, ... from every page request that skips
  * the intl middleware: all locale-prefixed paths - i.e. every page of a
  * NEXT_PUBLIC_LOCALE_PREFIX=always (Docker) build - plus /admin, /protocol,
- * /setup and the plugin sandbox. Since Next 16.3 the server recomputes the
+ * /setup, /connector and the plugin sandbox. Since Next 16.3 the server recomputes the
  * `_rsc` cache-busting hash from those router headers
  * (experimental.validateRSCRequestHeaders, on by default) and answers a
  * mismatch with a 307 to the "expected" URL; the client re-requests, the
@@ -291,6 +291,10 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
   const isProtocolRoute = pathname === '/protocol' || pathname.startsWith('/protocol/');
   const isSetupRoute = pathname === '/setup' || pathname.startsWith('/setup/');
+  // Connector links (/connector/<target>) are published in docs and READMEs
+  // and must not carry a locale. Letting next-intl rewrite them to
+  // /en/connector/... 404s, which breaks every link already in the wild.
+  const isConnectorRoute = pathname === '/connector' || pathname.startsWith('/connector/');
   // The plugin sandbox lives in its own root layout under app/(sandbox)/ and
   // is not part of the localized tree. Letting next-intl rewrite the path to
   // /en/plugin-sandbox 404s, which kills the iframe and disables every plugin.
@@ -305,7 +309,14 @@ export async function proxy(request: NextRequest) {
   );
 
   let intlResponse: ReturnType<typeof intlMiddleware> | null = null;
-  if (!isAdminRoute && !isProtocolRoute && !isSetupRoute && !isSandboxRoute && !hasLocalePrefix) {
+  if (
+    !isAdminRoute &&
+    !isProtocolRoute &&
+    !isSetupRoute &&
+    !isSandboxRoute &&
+    !isConnectorRoute &&
+    !hasLocalePrefix
+  ) {
     try {
       intlResponse = intlMiddleware(withMatchedChineseAcceptLanguage(request));
     } catch (error) {

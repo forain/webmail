@@ -155,6 +155,41 @@ export function buildLiteConfig(env = {}, { target = "static" } = {}) {
 }
 
 /** policy.json: only the gates Lite must pin; the app merges the rest over its defaults. */
+/**
+ * What `/api/connector/capabilities` answers on a server build, as a file.
+ *
+ * Lite is a static export with no route handlers, so a connector probing this
+ * instance gets this instead - same document, same meaning. The connector
+ * tries the API path first and falls back to `/connector.json`.
+ *
+ * The target names are read out of lib/connector/registry.ts rather than
+ * duplicated here: a list that drifts would have this build telling connectors
+ * it can resolve links it cannot.
+ */
+export function buildConnectorCapabilities({ appName, version, basePath = "" }) {
+  const source = readFileSync(
+    join(resolveRepoRoot(import.meta.url), "lib", "connector", "registry.ts"),
+    "utf8",
+  );
+  const targets = [...source.matchAll(/^\s{4}name: '([a-z0-9_]+)',$/gm)].map((m) => m[1]);
+  if (targets.length === 0) {
+    throw new Error("no connector targets found in lib/connector/registry.ts");
+  }
+  return (
+    JSON.stringify(
+      {
+        product: "bulwark-webmail",
+        appName: appName || "Bulwark",
+        version: version || null,
+        connectorPath: `${basePath || ""}/connector`,
+        targets,
+      },
+      null,
+      2,
+    ) + "\n"
+  );
+}
+
 export function buildLitePolicy() {
   return {
     _comment: "Optional admin policy for Bulwark Lite (same shape as the admin dashboard's policy). Plugins and sidebar apps stay off in Lite.",
@@ -331,6 +366,9 @@ export function buildHeaders({ basePath = "", connectSrc = "*" }) {
   Content-Security-Policy: ${csp}
 ${basePath || ""}/_next/static/*
   Cache-Control: public, max-age=31536000, immutable
+${basePath || ""}/connector.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
 `;
 }
 
